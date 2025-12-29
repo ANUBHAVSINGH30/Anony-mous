@@ -68,56 +68,15 @@ my-react-app/
     └── package.json
 ```
 
-## 🚀 Getting Started
+## 🚀 Project Overview
 
-### Prerequisites
-- Node.js (v18 or higher)
-- MongoDB (local or Atlas)
-- npm or yarn
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/ANUBHAVSINGH30/Anony-mous.git
-   cd Anony-mous
-   ```
-
-2. **Setup Backend**
-   ```bash
-   cd backend
-   npm install
-   ```
-
-   Create a `.env` file in the backend directory:
-   ```env
-   PORT=8000
-   MONGODB_URI=your_mongodb_connection_string
-   JWT_SECRET=your_jwt_secret_key
-   ```
-
-   Start the backend server:
-   ```bash
-   npm start
-   ```
-   Server will run on `http://localhost:8000`
-
-3. **Setup Frontend**
-   ```bash
-   cd frontend
-   npm install
-   ```
-
-   Create a `.env` file in the frontend directory (if needed):
-   ```env
-   VITE_API_URL=http://localhost:8000
-   ```
-
-   Start the development server:
-   ```bash
-   npm run dev
-   ```
-   Frontend will run on `http://localhost:5173`
+This is a personal project showcasing full-stack development skills with modern web technologies. The application demonstrates:
+- User authentication and authorization
+- Anonymous content posting system
+- RESTful API design
+- React component architecture
+- State management with Context API
+- Responsive UI/UX design
 
 ## 🎯 Usage
 
@@ -167,19 +126,9 @@ VITE_API_URL=http://localhost:8000
 - ⏳ Like/React system (planned)
 - ⏳ Real-time updates (planned)
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+This project is for portfolio purposes only. All rights reserved.
 
 ## 👤 Author
 
