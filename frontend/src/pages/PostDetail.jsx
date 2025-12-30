@@ -1,92 +1,132 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { usePost } from "../context/PostContext";
+import { getAnonymousUserId } from "../utils/anonymousUser";
+import { supabase } from "../supabase";
 import Navbar from "../components/Navbar";
 import LeftSidebar from "../components/LeftSidebar";
 
 function PostDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getPostById, updateVote, addComment } = usePost();
-  const post = getPostById(id);
-
-  const [userVote, setUserVote] = useState(() => {
-    const saved = localStorage.getItem(`vote_${id}`);
-    return saved ? parseInt(saved) : 0; // 0: no vote, 1: upvote, -1: downvote
-  });
-
-  const [currentVotes, setCurrentVotes] = useState(post?.votes || 0);
+  const { getPostById, updateVote, addComment: addCommentToPost, fetchComments } = usePost();
+  
+  const [post, setPost] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [userVote, setUserVote] = useState(0);
+  const [upvotes, setUpvotes] = useState(0);
+  const [downvotes, setDownvotes] = useState(0);
   const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState([]);
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   useEffect(() => {
-    if (post) {
-      setCurrentVotes(post.votes);
-    }
-  }, [post]);
+    loadPost();
+  }, [id]);
 
-  if (!post) {
+  const loadPost = async () => {
+    setLoading(true);
+    const postData = await getPostById(id);
+    
+    if (postData) {
+      setPost(postData);
+      setUpvotes(postData.upvotes || 0);
+      setDownvotes(postData.downvotes || 0);
+      
+      // Load comments
+      const commentsData = await fetchComments(id);
+      setComments(commentsData);
+      
+      // Check user vote
+      await checkUserVote();
+    }
+    
+    setLoading(false);
+  };
+
+  const checkUserVote = async () => {
+    try {
+      const userId = getAnonymousUserId();
+      const { data } = await supabase
+        .from('votes')
+        .select('value')
+        .eq('post_id', id)
+        .eq('user_id', userId)
+        .single();
+
+      if (data) {
+        setUserVote(data.value);
+      }
+    } catch (error) {
+      // No vote found
+    }
+  };
+
+  const handleVote = async (voteValue) => {
+    const newVote = userVote === voteValue ? 0 : voteValue;
+    setUserVote(newVote);
+
+    const result = await updateVote(id, newVote === 1 ? 1 : newVote === -1 ? -1 : 0);
+    
+    if (result) {
+      setUpvotes(result.upvotes);
+      setDownvotes(result.downvotes);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!commentText.trim() || submittingComment) return;
+    
+    setSubmittingComment(true);
+    const newComment = await addCommentToPost(id, commentText.trim());
+    
+    if (newComment) {
+      setComments(prev => [...prev, newComment]);
+      setCommentText("");
+    }
+    
+    setSubmittingComment(false);
+  };
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0b0b0b] text-white">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4">Post not found</h1>
-          <Link to="/feed" className="text-orange-500 hover:underline">
-            ← Back to Feed
-          </Link>
+      <>
+        <Navbar />
+        <div className="pt-16 min-h-screen flex items-center justify-center">
+          <div className="fixed inset-0 -z-20 bg-cover bg-center" style={{ backgroundImage: "url('/background.jpg')" }} />
+          <div className="fixed inset-0 -z-10 bg-black/70" />
+          <div className="text-center">
+            <div className="inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-slate-400">Loading post...</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
-  const handleVote = (voteType) => {
-    let newVote = 0;
-    let voteDelta = 0;
+  if (!post) {
+    return (
+      <>
+        <Navbar />
+        <div className="pt-16 min-h-screen flex items-center justify-center">
+          <div className="fixed inset-0 -z-20 bg-cover bg-center" style={{ backgroundImage: "url('/background.jpg')" }} />
+          <div className="fixed inset-0 -z-10 bg-black/70" />
+          <div className="text-center text-white">
+            <h1 className="text-3xl font-bold mb-4">Post not found</h1>
+            <Link to="/feed" className="text-orange-500 hover:underline">
+              ← Back to Feed
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  }
 
-    if (voteType === "up") {
-      if (userVote === 1) {
-        // Remove upvote
-        newVote = 0;
-        voteDelta = -1;
-      } else if (userVote === -1) {
-        // Switch from downvote to upvote
-        newVote = 1;
-        voteDelta = 2;
-      } else {
-        // Add upvote
-        newVote = 1;
-        voteDelta = 1;
-      }
-    } else if (voteType === "down") {
-      if (userVote === -1) {
-        // Remove downvote
-        newVote = 0;
-        voteDelta = 1;
-      } else if (userVote === 1) {
-        // Switch from upvote to downvote
-        newVote = -1;
-        voteDelta = -2;
-      } else {
-        // Add downvote
-        newVote = -1;
-        voteDelta = -1;
-      }
-    }
-
-    const newVotes = currentVotes + voteDelta;
-    setUserVote(newVote);
-    setCurrentVotes(newVotes);
-    localStorage.setItem(`vote_${id}`, newVote.toString());
-    updateVote(post.id, newVotes);
-  };
-
-  const handleAddComment = () => {
-    if (commentText.trim()) {
-      addComment(post.id, commentText.trim());
-      setCommentText("");
-    }
-  };
+  const netVotes = upvotes - downvotes;
 
   const getTimeAgo = (timestamp) => {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    const date = new Date(timestamp);
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
     if (seconds < 60) return `${seconds}s ago`;
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes}m ago`;
@@ -137,13 +177,12 @@ function PostDetail() {
                   {/* Vote Section */}
                   <div className="flex flex-col items-center gap-2 pt-2">
                     <button
-                      onClick={() => handleVote("up")}
-                      disabled={currentVotes >= 999}
+                      onClick={() => handleVote(1)}
                       className={`p-1.5 rounded-lg transition-all duration-200 ${
                         userVote === 1
                           ? "bg-orange-500 text-white"
                           : "hover:bg-white/10 text-slate-400 hover:text-orange-500"
-                      } ${currentVotes >= 999 ? "opacity-50 cursor-not-allowed" : ""}`}
+                      }`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
                         <path fillRule="evenodd" d="M11.47 7.72a.75.75 0 0 1 1.06 0l7.5 7.5a.75.75 0 1 1-1.06 1.06L12 9.31l-6.97 6.97a.75.75 0 0 1-1.06-1.06l7.5-7.5Z" clipRule="evenodd" />
@@ -151,13 +190,13 @@ function PostDetail() {
                     </button>
 
                     <span className={`font-bold text-lg transition-colors ${
-                      userVote === 1 ? "text-orange-500" : userVote === -1 ? "text-blue-500" : "text-white"
+                      netVotes > 0 ? "text-orange-500" : netVotes < 0 ? "text-blue-500" : "text-white"
                     }`}>
-                      {currentVotes}
+                      {netVotes}
                     </span>
 
                     <button
-                      onClick={() => handleVote("down")}
+                      onClick={() => handleVote(-1)}
                       className={`p-1.5 rounded-lg transition-all duration-200 ${
                         userVote === -1
                           ? "bg-blue-500 text-white"
@@ -173,26 +212,26 @@ function PostDetail() {
                   {/* Content */}
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3 text-sm text-slate-400">
-                      <span className="font-medium">{post.author}</span>
+                      <span className="font-medium">{post.username || 'Anonymous'}</span>
                       <span>•</span>
-                      <span>{getTimeAgo(post.timestamp)}</span>
+                      <span>{getTimeAgo(post.created_at)}</span>
                     </div>
 
                     <h1 className="text-2xl font-bold mb-4">{post.title}</h1>
 
                     {/* Media (if exists) */}
-                    {post.mediaUrl && post.mediaType === "image" && (
+                    {post.media_url && post.type === "media" && (
                       <div className="mb-4 rounded-xl overflow-hidden border border-white/20">
                         <img
-                          src={post.mediaUrl}
+                          src={post.media_url}
                           alt={post.title}
                           className="w-full h-auto max-h-[600px] object-contain bg-black/20"
                         />
                       </div>
                     )}
 
-                    {post.text && (
-                      <p className="text-lg leading-relaxed text-slate-200">{post.text}</p>
+                    {post.content && (
+                      <p className="text-lg leading-relaxed text-slate-200">{post.content}</p>
                     )}
 
                     {/* Post Actions */}
@@ -238,29 +277,29 @@ function PostDetail() {
                   <div className="flex justify-end mt-2">
                     <button
                       onClick={handleAddComment}
-                      disabled={!commentText.trim()}
+                      disabled={!commentText.trim() || submittingComment}
                       className="px-6 py-2 rounded-full bg-orange-500 text-white font-semibold
                                  hover:bg-orange-600 transition active:scale-95
                                  disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Comment
+                      {submittingComment ? 'Posting...' : 'Comment'}
                     </button>
                   </div>
                 </div>
 
                 {/* Comments List */}
-                {!post.comments || post.comments.length === 0 ? (
+                {comments.length === 0 ? (
                   <p className="text-center text-slate-400 py-8">
                     No comments yet. Be the first to comment!
                   </p>
                 ) : (
                   <div className="space-y-4">
-                    {post.comments.map((comment) => (
+                    {comments.map((comment) => (
                       <div key={comment.id} className="p-4 rounded-xl bg-white/5 border border-white/20">
                         <div className="flex items-center gap-3 mb-2 text-sm text-slate-400">
-                          <span className="font-medium">{comment.author}</span>
+                          <span className="font-medium">{comment.username || 'Anonymous'}</span>
                           <span>•</span>
-                          <span>{getTimeAgo(comment.createdAt)}</span>
+                          <span>{getTimeAgo(comment.created_at)}</span>
                         </div>
                         <p className="text-slate-200">{comment.text}</p>
                       </div>

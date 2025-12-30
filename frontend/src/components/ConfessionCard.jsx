@@ -1,68 +1,69 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { usePost } from "../context/PostContext";
+import { getAnonymousUserId } from "../utils/anonymousUser";
+import { supabase } from "../supabase";
 
 function ConfessionCard({ post }) {
   const { updateVote } = usePost();
-  const [userVote, setUserVote] = useState(() => {
-    const saved = localStorage.getItem(`vote_${post.id}`);
-    return saved ? parseInt(saved) : 0; // 0: no vote, 1: upvote, -1: downvote
-  });
-  
-  const [currentVotes, setCurrentVotes] = useState(post.votes);
+  const [userVote, setUserVote] = useState(0); // 0: no vote, 1: upvote, -1: downvote
+  const [upvotes, setUpvotes] = useState(post.upvotes || 0);
+  const [downvotes, setDownvotes] = useState(post.downvotes || 0);
   const [justVoted, setJustVoted] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setCurrentVotes(post.votes);
-  }, [post.votes]);
+    checkUserVote();
+  }, [post.id]);
 
-  const handleVote = (voteType) => {
-    let newVote = 0;
-    let voteDelta = 0;
+  useEffect(() => {
+    setUpvotes(post.upvotes || 0);
+    setDownvotes(post.downvotes || 0);
+  }, [post.upvotes, post.downvotes]);
 
-    if (voteType === "up") {
-      if (userVote === 1) {
-        // Remove upvote
-        newVote = 0;
-        voteDelta = -1;
-      } else if (userVote === -1) {
-        // Switch from downvote to upvote
-        newVote = 1;
-        voteDelta = 2;
-      } else {
-        // Add upvote
-        newVote = 1;
-        voteDelta = 1;
+  const checkUserVote = async () => {
+    try {
+      const userId = getAnonymousUserId();
+      const { data } = await supabase
+        .from('votes')
+        .select('value')
+        .eq('post_id', post.id)
+        .eq('user_id', userId)
+        .single();
+
+      if (data) {
+        setUserVote(data.value);
       }
-    } else if (voteType === "down") {
-      if (userVote === -1) {
-        // Remove downvote
-        newVote = 0;
-        voteDelta = 1;
-      } else if (userVote === 1) {
-        // Switch from upvote to downvote
-        newVote = -1;
-        voteDelta = -2;
-      } else {
-        // Add downvote
-        newVote = -1;
-        voteDelta = -1;
-      }
+    } catch (error) {
+      // No vote found, which is fine
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const newVotes = currentVotes + voteDelta;
-    setUserVote(newVote);
-    setCurrentVotes(newVotes);
-    localStorage.setItem(`vote_${post.id}`, newVote.toString());
-    updateVote(post.id, newVotes);
+  const handleVote = async (voteValue) => {
+    // Prevent multiple clicks
+    if (loading) return;
+
+    const newVote = userVote === voteValue ? 0 : voteValue;
     
-    // Trigger animation
+    // Optimistic update
+    setUserVote(newVote);
     setJustVoted(true);
     setTimeout(() => setJustVoted(false), 300);
+
+    // Update in database
+    const result = await updateVote(post.id, newVote === 1 ? 1 : newVote === -1 ? -1 : 0);
+    
+    if (result) {
+      setUpvotes(result.upvotes);
+      setDownvotes(result.downvotes);
+    }
   };
 
   const getTimeAgo = (timestamp) => {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    const date = new Date(timestamp);
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
     if (seconds < 60) return `${seconds}s ago`;
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes}m ago`;
@@ -71,6 +72,8 @@ function ConfessionCard({ post }) {
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
   };
+
+  const netVotes = upvotes - downvotes;
 
   return (
     <Link
@@ -88,10 +91,10 @@ function ConfessionCard({ post }) {
       {/* Alias and Time */}
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-slate-600">
-          {post.author}
+          {post.username || 'Anonymous'}
         </p>
         <span className="text-xs text-slate-400">
-          {getTimeAgo(post.timestamp)}
+          {getTimeAgo(post.created_at)}
         </span>
       </div>
 
@@ -103,10 +106,10 @@ function ConfessionCard({ post }) {
       )}
 
       {/* Media (if exists) */}
-      {post.mediaUrl && post.mediaType === "image" && (
+      {post.media_url && post.type === "media" && (
         <div className="mb-4 rounded-xl overflow-hidden">
           <img
-            src={post.mediaUrl}
+            src={post.media_url}
             alt={post.title}
             className="w-full h-auto max-h-[400px] object-cover"
           />
@@ -114,9 +117,9 @@ function ConfessionCard({ post }) {
       )}
 
       {/* Confession text */}
-      {post.text && (
+      {post.content && (
         <p className="text-slate-800 text-base leading-relaxed mb-5 font-light">
-          {post.text}
+          {post.content}
         </p>
       )}
 
@@ -141,8 +144,9 @@ function ConfessionCard({ post }) {
             <button
               onClick={(e) => {
                 e.preventDefault();
-                handleVote("up");
+                handleVote(1);
               }}
+              disabled={loading}
               className={`transition-all duration-200 rounded-full p-1
                          active:scale-90 ${
                 userVote === 1
@@ -154,16 +158,17 @@ function ConfessionCard({ post }) {
             </button>
 
             <span className={`text-sm font-bold min-w-[20px] text-center transition-colors ${
-              userVote === 1 ? 'text-orange-500' : userVote === -1 ? 'text-blue-500' : ''
+              netVotes > 0 ? 'text-orange-500' : netVotes < 0 ? 'text-blue-500' : ''
             }`}>
-              {currentVotes}
+              {netVotes}
             </span>
 
             <button
               onClick={(e) => {
                 e.preventDefault();
-                handleVote("down");
+                handleVote(-1);
               }}
+              disabled={loading}
               className={`transition-all duration-200 rounded-full p-1
                          active:scale-90 ${
                 userVote === -1
@@ -184,7 +189,7 @@ function ConfessionCard({ post }) {
                        hover:shadow-md hover:border-slate-300
                        transition-all duration-200"
           >
-            💬 <span className="font-medium">{post.comments?.length || 0}</span>
+            💬 <span className="font-medium">{post.comment_count || 0}</span>
           </div>
         </div>
 

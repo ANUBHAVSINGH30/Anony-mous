@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePost } from "../context/PostContext";
+import { uploadImage } from "../utils/imageUpload";
 import Navbar from "../components/Navbar";
 import LeftSidebar from "../components/LeftSidebar";
 
@@ -14,6 +15,8 @@ function Create() {
   const [linkDescription, setLinkDescription] = useState("");
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaPreview, setMediaPreview] = useState(null);
+  const [posting, setPosting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
@@ -32,56 +35,88 @@ function Create() {
       return;
     }
 
-    // Convert to base64
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setMediaFile(reader.result);
-      setMediaPreview(reader.result);
-    };
-    reader.readAsDataURL(file);
+    // Store the actual File object, not base64
+    setMediaFile(file);
+    
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setMediaPreview(previewUrl);
   };
 
   const handleRemoveMedia = () => {
+    // Clean up preview URL
+    if (mediaPreview) {
+      URL.revokeObjectURL(mediaPreview);
+    }
     setMediaFile(null);
     setMediaPreview(null);
   };
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (!title.trim()) {
       alert("Please add a title");
       return;
     }
+
+    setPosting(true);
 
     let postData = {
       title: title.trim(),
       type: activeTab,
     };
 
-    if (activeTab === "text") {
-      if (!textContent.trim()) {
-        alert("Please add some text content");
-        return;
+    try {
+      if (activeTab === "text") {
+        if (!textContent.trim()) {
+          alert("Please add some text content");
+          setPosting(false);
+          return;
+        }
+        postData.text = textContent.trim();
+      } else if (activeTab === "link") {
+        if (!linkUrl.trim()) {
+          alert("Please add a URL");
+          setPosting(false);
+          return;
+        }
+        postData.text = linkDescription.trim() || linkUrl;
+        postData.url = linkUrl.trim();
+      } else if (activeTab === "media") {
+        if (!mediaFile) {
+          alert("Please select an image");
+          setPosting(false);
+          return;
+        }
+        
+        // Upload image to Supabase Storage
+        setUploadingImage(true);
+        const imageUrl = await uploadImage(mediaFile);
+        setUploadingImage(false);
+        
+        if (!imageUrl) {
+          alert("Failed to upload image. Please try again.");
+          setPosting(false);
+          return;
+        }
+        
+        postData.text = "";
+        postData.mediaUrl = imageUrl;
+        postData.mediaType = "image";
       }
-      postData.text = textContent.trim();
-    } else if (activeTab === "link") {
-      if (!linkUrl.trim()) {
-        alert("Please add a URL");
-        return;
-      }
-      postData.text = linkDescription.trim() || linkUrl;
-      postData.url = linkUrl.trim();
-    } else if (activeTab === "media") {
-      if (!mediaFile) {
-        alert("Please select an image");
-        return;
-      }
-      postData.text = "";
-      postData.mediaUrl = mediaFile;
-      postData.mediaType = "image";
-    }
 
-    addPost(postData);
-    navigate("/feed");
+      const success = await addPost(postData);
+      setPosting(false);
+      
+      if (success) {
+        // Clean up
+        handleRemoveMedia();
+        navigate("/feed");
+      }
+    } catch (error) {
+      console.error('Error creating post:', error);
+      alert('Failed to create post. Please try again.');
+      setPosting(false);
+    }
   };
 
   return (
@@ -209,7 +244,7 @@ function Create() {
                   {activeTab === "media" && (
                     <div>
                       {!mediaPreview ? (
-                        <label className="w-full min-h-[300px] p-8 rounded-xl border-2 border-dashed border-white/30
+                        <label className="w-full min-h-75 p-8 rounded-xl border-2 border-dashed border-white/30
                                         bg-white/5 flex flex-col items-center justify-center
                                         hover:border-orange-500 hover:bg-white/10 transition cursor-pointer block">
                           <input
@@ -229,7 +264,7 @@ function Create() {
                           <img
                             src={mediaPreview}
                             alt="Preview"
-                            className="w-full h-auto max-h-[500px] object-contain bg-black/20"
+                            className="w-full h-auto max-h-125 object-contain bg-black/20"
                           />
                           <button
                             onClick={handleRemoveMedia}
@@ -289,11 +324,15 @@ function Create() {
                   </button>
                   <button
                     onClick={handlePost}
-                    className="px-6 py-2.5 rounded-full bg-orange-500 text-white
-                               font-semibold hover:bg-orange-600 transition
-                               active:scale-95 text-sm"
+                    disabled={posting}
+                    className={`px-6 py-2.5 rounded-full font-semibold transition
+                               active:scale-95 text-sm ${
+                                 posting 
+                                   ? 'bg-orange-400 text-white cursor-not-allowed'
+                                   : 'bg-orange-500 text-white hover:bg-orange-600'
+                               }`}
                   >
-                    Post
+                    {uploadingImage ? 'Uploading image...' : posting ? 'Posting...' : 'Post'}
                   </button>
                 </div>
               </div>

@@ -6,7 +6,7 @@ import LeftSidebar from "../components/LeftSidebar";
 import Navbar from "../components/Navbar";
 
 function Feed() {
-  const { getSortedPosts, sortBy, setSortBy } = usePost();
+  const { getSortedPosts, sortBy, setSortBy, loading } = usePost();
   const posts = getSortedPosts();
 
   return (
@@ -66,9 +66,20 @@ function Feed() {
 
             {/* Posts */}
             <div className="max-w-2xl space-y-4">
-              {posts.map((post) => (
-                <ConfessionCard key={post.id} post={post} />
-              ))}
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="mt-4 text-slate-400">Loading posts...</p>
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-400">No posts yet. Be the first to post!</p>
+                </div>
+              ) : (
+                posts.map((post) => (
+                  <ConfessionCard key={post.id} post={post} />
+                ))
+              )}
             </div>
           </main>
 

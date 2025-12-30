@@ -1,6 +1,16 @@
 import React from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { usePost } from "../context/PostContext";
 
 function LeftSidebar() {
+  const navigate = useNavigate();
+  const { setSortBy } = usePost();
+
+  const handleSort = (sortType) => {
+    setSortBy(sortType);
+    navigate('/feed');
+  };
+
   return (
     <aside className="hidden lg:flex flex-col w-64 fixed left-0 top-16 bottom-0
                      bg-[#0b0b0b] text-slate-200 px-4 py-6 border-r border-white/20
@@ -13,10 +23,10 @@ function LeftSidebar() {
 
       {/* Main Links */}
       <div className="space-y-4">
-        <SidebarItem icon="home" label="Home" />
-        <SidebarItem icon="new" label="New" />
-        <SidebarItem icon="popular" label="Popular" />
-        <SidebarItem icon="all" label="All" />
+        <SidebarItem icon="home" label="Home" onClick={() => navigate('/feed')} />
+        <SidebarItem icon="new" label="New" onClick={() => handleSort('new')} />
+        <SidebarItem icon="popular" label="Popular" onClick={() => handleSort('popular')} />
+        <SidebarItem icon="all" label="All" onClick={() => handleSort('new')} />
       </div>
 
       {/* Divider */}
@@ -24,11 +34,11 @@ function LeftSidebar() {
 
       {/* Platform Links */}
       <div className="space-y-4">
-        <SidebarItem icon="about" label="About" />
-        <SidebarItem icon="advertise" label="Advertise" />
-        <SidebarItem icon="developer" label="Developer Platform" />
-        <SidebarItem icon="careers" label="Careers" />
-        <SidebarItem icon="press" label="Press" />
+        <SidebarItem icon="about" label="About" href="https://github.com/ANUBHAVSINGH30/Anony-mous" external />
+        <SidebarItem icon="advertise" label="Advertise" onClick={() => alert('Advertise feature coming soon!')} />
+        <SidebarItem icon="developer" label="Developer Platform" href="https://github.com/ANUBHAVSINGH30" external />
+        <SidebarItem icon="careers" label="Careers" onClick={() => alert('Careers page coming soon!')} />
+        <SidebarItem icon="press" label="Press" onClick={() => alert('Press page coming soon!')} />
       </div>
 
       {/* Divider */}
@@ -36,10 +46,10 @@ function LeftSidebar() {
 
       {/* Footer */}
       <div className="space-y-3 text-sm text-slate-400 mt-auto">
-        <FooterItem icon="rules" label="Rules" />
-        <FooterItem icon="privacy" label="Privacy Policy" />
-        <FooterItem icon="agreement" label="User Agreement" />
-        <FooterItem icon="accessibility" label="Accessibility" />
+        <FooterItem icon="rules" label="Rules" onClick={() => alert('Community Rules:\n\n1. Be respectful\n2. No hate speech\n3. No spam\n4. Keep it anonymous\n5. Have fun!')} />
+        <FooterItem icon="privacy" label="Privacy Policy" onClick={() => alert('Your privacy is important. All posts are anonymous.')} />
+        <FooterItem icon="agreement" label="User Agreement" onClick={() => alert('By using this app, you agree to our terms of service.')} />
+        <FooterItem icon="accessibility" label="Accessibility" onClick={() => alert('We strive to make our app accessible to everyone.')} />
 
         <p className="text-xs text-slate-500 mt-4">
           © 2025 Confesso
@@ -53,7 +63,7 @@ export default LeftSidebar;
 
 /* -------- Reusable pieces -------- */
 
-function SidebarItem({ icon, label }) {
+function SidebarItem({ icon, label, onClick, href, external }) {
   const getIcon = () => {
     switch (icon) {
       case "home":
@@ -140,18 +150,39 @@ function SidebarItem({ icon, label }) {
     }
   };
 
+  const content = (
+    <>
+      <span className="text-slate-300">{getIcon()}</span>
+      <span className="text-sm font-medium">{label}</span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target={external ? "_blank" : undefined}
+        rel={external ? "noopener noreferrer" : undefined}
+        className="flex items-center gap-3 px-3 py-2 rounded-md
+                   cursor-pointer hover:bg-white/10 transition"
+      >
+        {content}
+      </a>
+    );
+  }
+
   return (
     <div
+      onClick={onClick}
       className="flex items-center gap-3 px-3 py-2 rounded-md
                  cursor-pointer hover:bg-white/10 transition"
     >
-      <span className="text-slate-300">{getIcon()}</span>
-      <span className="text-sm font-medium">{label}</span>
+      {content}
     </div>
   );
 }
 
-function FooterItem({ icon, label }) {
+function FooterItem({ icon, label, onClick }) {
   const getIcon = () => {
     switch (icon) {
       case "rules":
